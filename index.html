@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programador de Mensajes - WhatsApp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="background-glow"></div>
+
+  <main class="container">
+    <div class="card">
+      <header class="card-header">
+        <div class="header-left">
+          <div class="brand-icon">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
+              <path
+                d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.42 0-2.82-.37-4.06-1.07l-.29-.17-3.12.82.83-3.04-.19-.3a8.163 8.163 0 0 1-1.26-4.48c0-4.54 3.7-8.23 8.24-8.23m4.52 11.66c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.26-1.5-1.41-1.75-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.13-.15.17-.25.25-.42.08-.17.04-.32-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.44.06-.67.32-.23.25-.88.86-.88 2.1 0 1.24.9 2.44 1.03 2.61.13.17 1.78 2.72 4.31 3.81.6.26 1.07.42 1.44.54.61.19 1.16.17 1.6.1.49-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.07-.1-.23-.17-.48-.29z" />
+            </svg>
+          </div>
+          <div>
+            <h1>Programar Mensaje</h1>
+            <p class="subtitle">Envío automático por WhatsApp</p>
+          </div>
+        </div>
+        <!-- Indicador de conexión y botón de desconexión -->
+        <div class="connection-area">
+          <div id="connectionBadge" class="connection-badge status-disconnected">
+            <span class="status-dot"></span>
+            <span id="connectionText">Desconectado</span>
+          </div>
+          <button id="disconnectBtn" class="btn-disconnect hidden" title="Cerrar sesión de WhatsApp">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            <span>Desconectar</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Panel de escaneo QR si no está vinculado -->
+      <section id="qrPanel" class="qr-panel hidden">
+        <div class="qr-box">
+          <p class="qr-title">Escanea este código con tu WhatsApp</p>
+          <p class="qr-sub">Abre WhatsApp en tu teléfono > Dispositivos vinculados > Vincular un dispositivo</p>
+          <div class="qr-img-wrapper">
+            <img id="qrImage" alt="Código QR de WhatsApp" src="">
+          </div>
+        </div>
+      </section>
+
+      <form id="schedule-form" novalidate>
+        <!-- 1. Número telefónico -->
+        <div class="form-group">
+          <label for="phone">
+            <span>Número Telefónico</span>
+          </label>
+          <div class="input-wrapper">
+            <span class="input-icon">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path
+                  d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+              </svg>
+            </span>
+            <input type="tel" id="phone" name="phone" placeholder="Ej: +54 9 11 1234 5678" required>
+          </div>
+        </div>
+
+        <!-- 2. Caja de texto para el mensaje -->
+        <div class="form-group">
+          <label for="message">
+            <span>Mensaje</span>
+          </label>
+          <div class="textarea-wrapper">
+            <textarea id="message" name="message" rows="4" placeholder="Escribe el mensaje que deseas programar..."
+              required></textarea>
+          </div>
+        </div>
+
+        <!-- 3. Opción para seleccionar archivos, imágenes, videos o audio -->
+        <div class="form-group">
+          <label>
+            <span>Adjuntar Archivo, Imagen, Video o Audio</span>
+          </label>
+          <div class="file-drop-area" id="fileDropArea">
+            <input type="file" id="attachment" name="attachment"
+              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
+            <div class="file-dummy">
+              <div class="file-icon-group">
+                <span class="badge-type" title="Imágenes">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
+                  </svg>
+                  Fotos
+                </span>
+                <span class="badge-type" title="Videos">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="23 7 16 12 23 17 23 7" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                  </svg>
+                  Videos
+                </span>
+                <span class="badge-type" title="Audios">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18V5l12-2v13" />
+                    <circle cx="6" cy="18" r="3" />
+                    <circle cx="18" cy="16" r="3" />
+                  </svg>
+                  Audio
+                </span>
+                <span class="badge-type" title="Archivos">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+                    <polyline points="13 2 13 9 20 9" />
+                  </svg>
+                  Archivos
+                </span>
+              </div>
+              <p class="file-prompt">
+                <strong>Haz clic aquí</strong> o arrastra tu archivo
+              </p>
+              <span class="file-hint">Soporta imágenes, videos, grabaciones de audio o documentos</span>
+            </div>
+          </div>
+          <!-- Vista previa del archivo seleccionado -->
+          <div id="filePreview" class="file-preview hidden">
+            <div class="file-info">
+              <span class="file-name" id="fileName"></span>
+              <span class="file-size" id="fileSize"></span>
+            </div>
+            <button type="button" class="btn-remove-file" id="removeFileBtn" title="Quitar archivo">✕</button>
+          </div>
+        </div>
+
+        <!-- 4 y 5. Opciones para configurar Fecha y Hora -->
+        <div class="form-row">
+          <div class="form-group col">
+            <label for="date">
+              <span>Fecha</span>
+            </label>
+            <div class="input-wrapper">
+              <span class="input-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </span>
+              <input type="date" id="date" name="date" required>
+            </div>
+          </div>
+
+          <div class="form-group col">
+            <label for="time">
+              <span>Hora</span>
+            </label>
+            <div class="input-wrapper">
+              <span class="input-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </span>
+              <input type="time" id="time" name="time" required>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botón de acción -->
+        <button type="submit" class="btn-submit" id="submitBtn">
+          <span>Programar Mensaje</span>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+        </button>
+      </form>
+
+      <!-- Mensaje de confirmación / estado temporal -->
+      <div id="statusMessage" class="status-message hidden"></div>
+
+      <!-- Sección de Mensajes Programados y Temporizador -->
+      <section id="scheduledSection" class="scheduled-section">
+        <div class="scheduled-header">
+          <div class="section-title-wrap">
+            <span class="pulse-indicator"></span>
+            <h2>Mensajes Programados</h2>
+          </div>
+          <span id="scheduledCountBadge" class="count-badge">0 activos</span>
+        </div>
+
+        <div id="scheduledCardsContainer" class="scheduled-cards-container">
+          <!-- Mensaje vacío inicial -->
+          <div id="emptyScheduledMessage" class="empty-scheduled">
+            <p>No tienes mensajes programados pendientes en este momento.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
