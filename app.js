@@ -167,6 +167,20 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // Calcular el timestamp exacto en la zona horaria del usuario
+    const localScheduledDate = new Date(`${date}T${time}:00`);
+    const scheduledTimestamp = localScheduledDate.getTime();
+
+    if (isNaN(scheduledTimestamp)) {
+      showStatus('Fecha u hora seleccionada inválida.', 'error');
+      return;
+    }
+
+    if (scheduledTimestamp <= Date.now()) {
+      showStatus('La hora seleccionada ya pasó. Por favor elige una hora futura.', 'error');
+      return;
+    }
+
     submitBtn.disabled = true;
     submitBtn.querySelector('span').textContent = 'Guardando programación...';
 
@@ -175,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.append('message', message);
     formData.append('date', date);
     formData.append('time', time);
+    formData.append('scheduledTimestamp', scheduledTimestamp.toString());
 
     if (fileInput.files && fileInput.files[0]) {
       formData.append('attachment', fileInput.files[0]);

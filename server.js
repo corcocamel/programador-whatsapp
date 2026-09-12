@@ -186,15 +186,25 @@ async function resolveWhatsAppJid(client, phone) {
 // Endpoint para programar un mensaje
 app.post('/api/schedule', upload.single('attachment'), async (req, res) => {
   try {
-    const { phone, message, date, time } = req.body;
+    const { phone, message, date, time, scheduledTimestamp } = req.body;
 
     if (!phone || !message || !date || !time) {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
-    const scheduledDateTime = new Date(`${date}T${time}:00`);
-    if (isNaN(scheduledDateTime.getTime())) {
+    let targetTime = scheduledTimestamp ? parseInt(scheduledTimestamp, 10) : NaN;
+    if (isNaN(targetTime)) {
+      const scheduledDateTime = new Date(`${date}T${time}:00`);
+      targetTime = scheduledDateTime.getTime();
+    }
+
+    if (isNaN(targetTime)) {
       return res.status(400).json({ error: 'Fecha u hora inválida' });
+    }
+
+    // Permitir un margen de 15 segundos por latencia de red, pero evitar programaciones pasadas
+    if (targetTime < Date.now() - 15000) {
+      return res.status(400).json({ error: 'La hora programada ya pasó. Elige una fecha/hora futura.' });
     }
 
     // Resolver JID correcto en WhatsApp
@@ -207,7 +217,7 @@ app.post('/api/schedule', upload.single('attachment'), async (req, res) => {
       message,
       date,
       time,
-      scheduledTime: scheduledDateTime.getTime(),
+      scheduledTime: targetTime,
       file: req.file ? {
         originalName: req.file.originalname,
         filename: req.file.filename,
