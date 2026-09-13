@@ -59,12 +59,24 @@
       </section>
 
       <form id="schedule-form" novalidate>
-        <!-- 1. Número telefónico -->
-        <div class="form-group">
-          <label for="phone">
-            <span>Número Telefónico</span>
-          </label>
-          <div class="input-wrapper">
+        <!-- 1. Número telefónico con Selector de Contactos -->
+        <div class="form-group phone-form-group">
+          <div class="label-with-action">
+            <label for="phone">
+              <span>Número Telefónico</span>
+            </label>
+            <button type="button" id="openContactsBtn" class="btn-select-contact" title="Seleccionar desde tus contactos">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span>Contactos</span>
+              <span id="contactsCountBadge" class="contacts-mini-badge hidden">0</span>
+            </button>
+          </div>
+          <div class="input-wrapper relative-wrapper">
             <span class="input-icon">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round">
@@ -72,7 +84,23 @@
                   d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
               </svg>
             </span>
-            <input type="tel" id="phone" name="phone" placeholder="Ej: +54 9 11 1234 5678" required>
+            <input type="tel" id="phone" name="phone" placeholder="Ej: +54 9 11 1234 5678 o escribe un nombre" autocomplete="off" required>
+            <button type="button" id="clearPhoneBtn" class="clear-input-btn hidden" title="Limpiar campo">✕</button>
+
+            <!-- Dropdown flotante de sugerencias rápidas al escribir -->
+            <div id="contactsDropdown" class="contacts-dropdown hidden">
+              <div id="contactsDropdownList" class="contacts-dropdown-list"></div>
+            </div>
+          </div>
+
+          <!-- Indicador del contacto seleccionado -->
+          <div id="selectedContactChip" class="selected-contact-chip hidden">
+            <span class="chip-avatar" id="chipAvatar">👤</span>
+            <div class="chip-info">
+              <span class="chip-name" id="chipName">Contacto</span>
+              <span class="chip-sub" id="chipSub"></span>
+            </div>
+            <button type="button" class="chip-remove" id="removeSelectedContact" title="Quitar contacto">✕</button>
           </div>
         </div>
 
@@ -212,6 +240,77 @@
       </section>
     </div>
   </main>
+
+  <!-- Modal de Selección de Contactos -->
+  <div id="contactsModal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-title-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+          <div>
+            <h3>Tus Contactos de WhatsApp</h3>
+            <p class="modal-subtitle">Selecciona un destinatario para programar el mensaje</p>
+          </div>
+        </div>
+        <button type="button" id="closeContactsModal" class="btn-close-modal" title="Cerrar modal">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Buscador interno -->
+      <div class="modal-search-wrapper">
+        <div class="modal-search-box">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="contactSearchInput" placeholder="Buscar por nombre o número..." autocomplete="off">
+          <button type="button" id="clearSearchBtn" class="clear-search-btn hidden">✕</button>
+        </div>
+      </div>
+
+      <!-- Pestañas de filtro -->
+      <div class="modal-filter-tabs">
+        <button type="button" class="tab-btn active" data-filter="contacts">
+          <span>👤 Mis Contactos</span>
+          <span class="tab-badge" id="countContacts">0</span>
+        </button>
+        <button type="button" class="tab-btn" data-filter="groups">
+          <span>👥 Grupos</span>
+          <span class="tab-badge" id="countGroups">0</span>
+        </button>
+        <button type="button" class="tab-btn" data-filter="all">
+          <span>📋 Todos</span>
+          <span class="tab-badge" id="countAll">0</span>
+        </button>
+      </div>
+
+      <div id="modalSearchSummary" class="modal-search-summary">Mostrando contactos de tu agenda de WhatsApp</div>
+
+      <!-- Lista con scroll -->
+      <div class="modal-body-scroll" id="modalBodyScroll">
+        <div id="contactsModalList" class="contacts-modal-list"></div>
+        <div id="contactsEmptyState" class="contacts-empty-state hidden">
+          <div class="empty-icon">🔍</div>
+          <p>No se encontraron contactos que coincidan con la búsqueda.</p>
+        </div>
+        <div id="contactsNotConnectedNotice" class="contacts-empty-state hidden">
+          <div class="empty-icon">📱</div>
+          <p>WhatsApp aún no está conectado. Escanea el código QR arriba para sincronizar tus contactos.</p>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

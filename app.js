@@ -18,6 +18,42 @@ document.addEventListener('DOMContentLoaded', () => {
   const qrImage = document.getElementById('qrImage');
   const disconnectBtn = document.getElementById('disconnectBtn');
 
+  // Elementos del selector y autocompletado de contactos
+  const phoneInput = document.getElementById('phone');
+  const openContactsBtn = document.getElementById('openContactsBtn');
+  const contactsCountBadge = document.getElementById('contactsCountBadge');
+  const clearPhoneBtn = document.getElementById('clearPhoneBtn');
+  const contactsDropdown = document.getElementById('contactsDropdown');
+  const contactsDropdownList = document.getElementById('contactsDropdownList');
+  const selectedContactChip = document.getElementById('selectedContactChip');
+  const chipAvatar = document.getElementById('chipAvatar');
+  const chipName = document.getElementById('chipName');
+  const chipSub = document.getElementById('chipSub');
+  const removeSelectedContact = document.getElementById('removeSelectedContact');
+
+  // Elementos del Modal de Contactos
+  const contactsModal = document.getElementById('contactsModal');
+  const closeContactsModal = document.getElementById('closeContactsModal');
+  const contactSearchInput = document.getElementById('contactSearchInput');
+  const clearSearchBtn = document.getElementById('clearSearchBtn');
+  const contactsModalList = document.getElementById('contactsModalList');
+  const contactsEmptyState = document.getElementById('contactsEmptyState');
+  const contactsNotConnectedNotice = document.getElementById('contactsNotConnectedNotice');
+  const tabBtns = document.querySelectorAll('.modal-filter-tabs .tab-btn');
+  const countAll = document.getElementById('countAll');
+  const countContacts = document.getElementById('countContacts');
+  const countGroups = document.getElementById('countGroups');
+  const modalBodyScroll = document.getElementById('modalBodyScroll');
+  const modalSearchSummary = document.getElementById('modalSearchSummary');
+
+  // Estado de Contactos
+  let contactsData = [];
+  let currentTabFilter = 'contacts'; // Por defecto muestra la agenda de contactos
+  let isWhatsAppConnected = false;
+  let currentFilteredList = [];
+  let currentRenderOffset = 0;
+  const CHUNK_SIZE = 50;
+
   // Ajustar fecha y hora por defecto
   const now = new Date();
   const today = now.toISOString().split('T')[0];
@@ -86,6 +122,401 @@ document.addEventListener('DOMContentLoaded', () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
+  // ========================================================
+  // GESTIÓN Y SINCRONIZACIÓN DE CONTACTOS DE WHATSAPP
+  // ========================================================
+
+  function formatPhoneDisplay(phone) {
+    if (!phone) return '';
+    const clean = phone.replace(/[^0-9]/g, '');
+    if (clean.startsWith('549') && clean.length >= 12) {
+      const area = clean.substring(3, clean.length - 7);
+      const mid = clean.substring(clean.length - 7, clean.length - 4);
+      const end = clean.substring(clean.length - 4);
+      return `+54 9 ${area} ${mid}-${end}`;
+    } else if (clean.startsWith('54') && clean.length >= 10) {
+      return `+54 ${clean.substring(2)}`;
+    }
+    return `+${clean}`;
+  }
+
+  function getAvatarColor(name) {
+    const colors = [
+      'linear-gradient(135deg, #128c7e 0%, #075e54 100%)',
+      'linear-gradient(135deg, #00a884 0%, #005c4b 100%)',
+      'linear-gradient(135deg, #34b7f1 0%, #128c7e 100%)',
+      'linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%)',
+      'linear-gradient(135deg, #e11d48 0%, #881337 100%)',
+      'linear-gradient(135deg, #ea580c 0%, #9a3412 100%)',
+      'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+      'linear-gradient(135deg, #059669 0%, #064e3b 100%)',
+      'linear-gradient(135deg, #d97706 0%, #78350f 100%)'
+    ];
+    if (!name) return colors[0];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
+  }
+
+  function getInitials(name, isGroup) {
+    if (isGroup) return '👥';
+    if (!name) return '👤';
+    const clean = name.replace(/[^\p{L}\p{N}\s]/gu, '').trim();
+    if (!clean) return '👤';
+    const parts = clean.split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return clean.substring(0, 2).toUpperCase();
+  }
+
+  async function loadContacts(silent = false) {
+    try {
+      const res = await fetch('/api/contacts');
+      if (!res.ok) return;
+      const data = await res.json();
+      contactsData = data.contacts || [];
+
+      // Actualizar contadores
+      const total = contactsData.length;
+      const contactsCount = contactsData.filter(c => !c.isGroup && c.hasRealName).length;
+      const groupsCount = contactsData.filter(c => c.isGroup).length;
+
+      if (countAll) countAll.textContent = total;
+      if (countContacts) countContacts.textContent = contactsCount;
+      if (countGroups) countGroups.textContent = groupsCount;
+
+      if (total > 0 && isWhatsAppConnected) {
+        contactsCountBadge.textContent = contactsCount > 0 ? contactsCount : total;
+        contactsCountBadge.classList.remove('hidden');
+      } else {
+        contactsCountBadge.classList.add('hidden');
+      }
+
+      if (!contactsModal.classList.contains('hidden')) {
+        renderModalContacts();
+      }
+    } catch (err) {
+      if (!silent) console.error('Error al cargar contactos:', err);
+    }
+  }
+
+  function selectContact(contact) {
+    const value = contact.isGroup ? contact.id : (contact.phone ? `+${contact.phone}` : contact.id.split('@')[0]);
+    phoneInput.value = value;
+    clearPhoneBtn.classList.remove('hidden');
+
+    // Mostrar Chip informativo
+    chipAvatar.textContent = getInitials(contact.name, contact.isGroup);
+    chipAvatar.className = 'chip-avatar' + (contact.isGroup ? ' is-group' : '');
+    chipAvatar.style.background = contact.isGroup ? 'linear-gradient(135deg, #34b7f1 0%, #128c7e 100%)' : getAvatarColor(contact.name);
+    chipName.textContent = contact.name;
+    chipSub.textContent = contact.isGroup ? 'Grupo de WhatsApp' : (contact.phone ? formatPhoneDisplay(contact.phone) : 'Contacto');
+    selectedContactChip.classList.remove('hidden');
+
+    // Cerrar sugerencias y modal
+    closeDropdown();
+    closeModal();
+  }
+
+  function clearSelectedContact() {
+    selectedContactChip.classList.add('hidden');
+    chipName.textContent = '';
+    chipSub.textContent = '';
+  }
+
+  // Autocompletado rápido al escribir en el input
+  function renderDropdown(query) {
+    if (!query || contactsData.length === 0) {
+      closeDropdown();
+      return;
+    }
+
+    const q = query.toLowerCase().trim();
+    const matches = contactsData.filter(c => {
+      const nameMatch = c.name && c.name.toLowerCase().includes(q);
+      const phoneMatch = c.phone && c.phone.includes(q);
+      const notifyMatch = c.notify && c.notify.toLowerCase().includes(q);
+      return nameMatch || phoneMatch || notifyMatch;
+    }).slice(0, 6);
+
+    if (matches.length === 0) {
+      closeDropdown();
+      return;
+    }
+
+    contactsDropdownList.innerHTML = '';
+    matches.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'dropdown-contact-item';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'contact-avatar-sm' + (c.isGroup ? ' is-group' : '');
+      avatar.style.background = c.isGroup ? 'linear-gradient(135deg, #34b7f1 0%, #128c7e 100%)' : getAvatarColor(c.name);
+      avatar.textContent = getInitials(c.name, c.isGroup);
+
+      const details = document.createElement('div');
+      details.className = 'dropdown-contact-details';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'dropdown-contact-name';
+      nameSpan.textContent = c.name;
+
+      const subSpan = document.createElement('span');
+      subSpan.className = 'dropdown-contact-sub';
+      subSpan.textContent = c.isGroup ? 'Grupo' : (c.phone ? formatPhoneDisplay(c.phone) : '');
+
+      details.appendChild(nameSpan);
+      details.appendChild(subSpan);
+      item.appendChild(avatar);
+      item.appendChild(details);
+
+      item.addEventListener('click', () => {
+        selectContact(c);
+      });
+
+      contactsDropdownList.appendChild(item);
+    });
+
+    contactsDropdown.classList.remove('hidden');
+  }
+
+  function closeDropdown() {
+    contactsDropdown.classList.add('hidden');
+  }
+
+  phoneInput.addEventListener('input', (e) => {
+    const val = e.target.value;
+    if (val.trim()) {
+      clearPhoneBtn.classList.remove('hidden');
+      renderDropdown(val);
+    } else {
+      clearPhoneBtn.classList.add('hidden');
+      clearSelectedContact();
+      closeDropdown();
+    }
+  });
+
+  clearPhoneBtn.addEventListener('click', () => {
+    phoneInput.value = '';
+    clearPhoneBtn.classList.add('hidden');
+    clearSelectedContact();
+    closeDropdown();
+    phoneInput.focus();
+  });
+
+  removeSelectedContact.addEventListener('click', () => {
+    clearSelectedContact();
+    phoneInput.value = '';
+    clearPhoneBtn.classList.add('hidden');
+    phoneInput.focus();
+  });
+
+  // Cerrar dropdown al hacer click fuera
+  document.addEventListener('click', (e) => {
+    if (!phoneInput.contains(e.target) && !contactsDropdown.contains(e.target)) {
+      closeDropdown();
+    }
+  });
+
+  // ========================================================
+  // MODAL SELECTOR DE CONTACTOS
+  // ========================================================
+
+  function openModal() {
+    contactsModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    contactSearchInput.value = '';
+    clearSearchBtn.classList.add('hidden');
+
+    if (!isWhatsAppConnected && contactsData.length === 0) {
+      contactsNotConnectedNotice.classList.remove('hidden');
+      contactsEmptyState.classList.add('hidden');
+      contactsModalList.innerHTML = '';
+      if (modalSearchSummary) modalSearchSummary.textContent = 'WhatsApp desconectado';
+    } else {
+      contactsNotConnectedNotice.classList.add('hidden');
+      renderModalContacts();
+      setTimeout(() => contactSearchInput.focus(), 100);
+    }
+  }
+
+  function closeModal() {
+    contactsModal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  openContactsBtn.addEventListener('click', openModal);
+  closeContactsModal.addEventListener('click', closeModal);
+
+  contactsModal.addEventListener('click', (e) => {
+    if (e.target === contactsModal) closeModal();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !contactsModal.classList.contains('hidden')) {
+      closeModal();
+    }
+  });
+
+  // Filtros por pestaña
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentTabFilter = btn.dataset.filter;
+      renderModalContacts();
+    });
+  });
+
+  // Búsqueda en modal
+  contactSearchInput.addEventListener('input', (e) => {
+    const val = e.target.value.trim();
+    if (val) {
+      clearSearchBtn.classList.remove('hidden');
+    } else {
+      clearSearchBtn.classList.add('hidden');
+    }
+    renderModalContacts();
+  });
+
+  clearSearchBtn.addEventListener('click', () => {
+    contactSearchInput.value = '';
+    clearSearchBtn.classList.add('hidden');
+    contactSearchInput.focus();
+    renderModalContacts();
+  });
+
+  function createContactCardElement(c) {
+    const card = document.createElement('div');
+    card.className = 'contact-card-item';
+
+    const left = document.createElement('div');
+    left.className = 'contact-card-left';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'contact-avatar-md' + (c.isGroup ? ' is-group' : '');
+    avatar.style.background = c.isGroup ? 'linear-gradient(135deg, #34b7f1 0%, #128c7e 100%)' : getAvatarColor(c.name);
+    avatar.textContent = getInitials(c.name, c.isGroup);
+
+    const info = document.createElement('div');
+    info.className = 'contact-card-info';
+
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'contact-card-title';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'contact-card-name';
+    nameSpan.textContent = c.name;
+    titleWrap.appendChild(nameSpan);
+
+    if (c.isGroup) {
+      const groupBadge = document.createElement('span');
+      groupBadge.className = 'badge-group';
+      groupBadge.textContent = 'Grupo';
+      titleWrap.appendChild(groupBadge);
+    } else if (c.notify && c.notify !== c.name) {
+      const notifyBadge = document.createElement('span');
+      notifyBadge.className = 'badge-notify';
+      notifyBadge.textContent = `~${c.notify}`;
+      titleWrap.appendChild(notifyBadge);
+    }
+
+    const phoneSpan = document.createElement('span');
+    phoneSpan.className = c.isGroup ? 'contact-card-sub' : 'contact-card-phone';
+    phoneSpan.textContent = c.isGroup ? 'Grupo de WhatsApp' : (c.phone ? formatPhoneDisplay(c.phone) : 'Sin número');
+
+    info.appendChild(titleWrap);
+    info.appendChild(phoneSpan);
+
+    left.appendChild(avatar);
+    left.appendChild(info);
+
+    const action = document.createElement('span');
+    action.className = 'contact-card-action';
+    action.textContent = 'Seleccionar';
+
+    card.appendChild(left);
+    card.appendChild(action);
+
+    card.addEventListener('click', () => {
+      selectContact(c);
+    });
+
+    return card;
+  }
+
+  function appendNextContactChunk() {
+    if (currentRenderOffset >= currentFilteredList.length) return;
+    const chunk = currentFilteredList.slice(currentRenderOffset, currentRenderOffset + CHUNK_SIZE);
+    const fragment = document.createDocumentFragment();
+    chunk.forEach(c => {
+      fragment.appendChild(createContactCardElement(c));
+    });
+    contactsModalList.appendChild(fragment);
+    currentRenderOffset += chunk.length;
+  }
+
+  // Scroll infinito en el modal
+  if (modalBodyScroll) {
+    modalBodyScroll.addEventListener('scroll', () => {
+      if (modalBodyScroll.scrollTop + modalBodyScroll.clientHeight >= modalBodyScroll.scrollHeight - 150) {
+        appendNextContactChunk();
+      }
+    });
+  }
+
+  function renderModalContacts() {
+    const query = contactSearchInput.value.toLowerCase().trim();
+
+    let filtered = contactsData;
+
+    // Filtro por pestaña
+    if (currentTabFilter === 'contacts') {
+      filtered = filtered.filter(c => !c.isGroup && c.hasRealName);
+    } else if (currentTabFilter === 'groups') {
+      filtered = filtered.filter(c => c.isGroup);
+    }
+
+    // Filtro por texto
+    if (query) {
+      filtered = filtered.filter(c => {
+        const nameMatch = c.name && c.name.toLowerCase().includes(query);
+        const phoneMatch = c.phone && c.phone.includes(query);
+        const notifyMatch = c.notify && c.notify.toLowerCase().includes(query);
+        return nameMatch || phoneMatch || notifyMatch;
+      });
+    }
+
+    currentFilteredList = filtered;
+    currentRenderOffset = 0;
+    contactsModalList.innerHTML = '';
+
+    // Actualizar texto informativo de resumen
+    if (modalSearchSummary) {
+      if (query) {
+        modalSearchSummary.textContent = `Encontrados ${filtered.length} contactos para "${query}"`;
+      } else if (currentTabFilter === 'contacts') {
+        modalSearchSummary.textContent = `Mostrando ${filtered.length} contactos guardados en tu agenda de WhatsApp`;
+      } else if (currentTabFilter === 'groups') {
+        modalSearchSummary.textContent = `Mostrando ${filtered.length} grupos de WhatsApp`;
+      } else {
+        modalSearchSummary.textContent = `Mostrando ${filtered.length} contactos y chats`;
+      }
+    }
+
+    if (filtered.length === 0) {
+      contactsEmptyState.classList.remove('hidden');
+      return;
+    } else {
+      contactsEmptyState.classList.add('hidden');
+    }
+
+    // Renderizar primer bloque de contactos
+    appendNextContactChunk();
+  }
+
   // Polling para verificar el estado de WhatsApp y QR
   async function checkWhatsAppStatus() {
     try {
@@ -101,24 +532,35 @@ document.addEventListener('DOMContentLoaded', () => {
         connectionText.textContent = 'Conectado';
         qrPanel.classList.add('hidden');
         disconnectBtn.classList.remove('hidden');
+
+        if (!isWhatsAppConnected) {
+          isWhatsAppConnected = true;
+          loadContacts();
+        }
       } else if (data.status === 'qr_ready' && data.qr) {
+        isWhatsAppConnected = false;
         connectionBadge.classList.add('status-qr');
         connectionText.textContent = 'Escanear QR';
         qrImage.src = data.qr;
         qrPanel.classList.remove('hidden');
         disconnectBtn.classList.add('hidden');
+        contactsCountBadge.classList.add('hidden');
       } else if (data.status === 'connecting') {
+        isWhatsAppConnected = false;
         connectionBadge.classList.add('status-connecting');
         connectionText.textContent = 'Iniciando...';
         qrPanel.classList.add('hidden');
         disconnectBtn.classList.add('hidden');
       } else {
+        isWhatsAppConnected = false;
         connectionBadge.classList.add('status-disconnected');
         connectionText.textContent = 'Desconectado';
         qrPanel.classList.add('hidden');
         disconnectBtn.classList.add('hidden');
+        contactsCountBadge.classList.add('hidden');
       }
     } catch (err) {
+      isWhatsAppConnected = false;
       connectionBadge.className = 'connection-badge status-disconnected';
       connectionText.textContent = 'Servidor sin conexión';
       qrPanel.classList.add('hidden');
@@ -138,6 +580,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (res.ok && data.success) {
         showStatus('✓ Sesión de WhatsApp cerrada correctamente.', 'success');
+        contactsData = [];
+        clearSelectedContact();
+        phoneInput.value = '';
+        contactsCountBadge.classList.add('hidden');
       } else {
         showStatus(data.error || 'No se pudo cerrar la sesión.', 'error');
       }
@@ -148,6 +594,13 @@ document.addEventListener('DOMContentLoaded', () => {
       disconnectBtn.querySelector('span').textContent = 'Desconectar';
     }
   });
+
+  // Refrescar contactos periódicamente si WhatsApp está conectado
+  setInterval(() => {
+    if (isWhatsAppConnected) {
+      loadContacts(true);
+    }
+  }, 10000);
 
   // Comprobar estado cada 3 segundos
   checkWhatsAppStatus();
@@ -210,6 +663,8 @@ document.addEventListener('DOMContentLoaded', () => {
         );
         form.reset();
         clearFilePreview();
+        clearSelectedContact();
+        clearPhoneBtn.classList.add('hidden');
         dateInput.value = today;
         await loadSchedules();
       } else {
